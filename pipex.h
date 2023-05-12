@@ -6,7 +6,7 @@
 /*   By: loandrad <loandrad@student.42wolfsburg.    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/05/08 14:53:40 by loandrad          #+#    #+#             */
-/*   Updated: 2023/05/11 17:23:49 by loandrad         ###   ########.fr       */
+/*   Updated: 2023/05/12 11:30:19 by loandrad         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,6 +17,9 @@
 # include <fcntl.h>
 # include <sys/wait.h>
 # include <stdlib.h>
+# include <string.h>
+# include <errno.h>
+# include <stdio.h>
 
 # define STDIN 0
 # define STDOUT 1

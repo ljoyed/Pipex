@@ -6,7 +6,7 @@
 /*   By: loandrad <loandrad@student.42wolfsburg.    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/05/08 14:53:36 by loandrad          #+#    #+#             */
-/*   Updated: 2023/05/11 17:24:59 by loandrad         ###   ########.fr       */
+/*   Updated: 2023/05/12 12:00:59 by loandrad         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,17 +17,19 @@ int	openfile(char *filename, int mode)
 	if (mode == INFILE)
 	{
 		if (access(filename, F_OK))
-		{
-			write(STDERR, "pipex: ", 7);
-			write(STDERR, filename, str_i_chr(filename, 0));
-			write(STDERR, ": No such file or directory\n", 28);
-			return (STDIN);
+		{	
+			perror("pipex ");
+			strerror(errno);
 		}
 		return (open(filename, O_RDONLY));
 	}
 	else
+	{
+		if (access(filename, F_OK))
+			exit(EXIT_FAILURE);
 		return (open(filename, O_CREAT | O_WRONLY | O_TRUNC,
 				S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH));
+	}
 }
 
 char	*get_path(char *cmd, char **env)
@@ -77,24 +79,25 @@ void	exec(char *cmd, char **env)
 	exit(127);
 }
 
-void	redirect(char *cmd, char **env, int fdin)
+void	redirect(char *cmd, char **env, int file_in)
 {
 	pid_t	pid;
-	int		pipefd[2];
+	int		fd[2];
+	int		status;
 
-	pipe(pipefd);
+	pipe(fd);
 	pid = fork();
 	if (pid)
 	{
-		close(pipefd[1]);
-		dup2(pipefd[0], STDIN);
-		waitpid(pid, NULL, 0);
+		close(fd[1]);
+		dup2(fd[0], STDIN);
+		waitpid(pid, &status, WNOHANG);
 	}
 	else
 	{
-		close(pipefd[0]);
-		dup2(pipefd[1], STDOUT);
-		if (fdin == STDIN)
+		close(fd[0]);
+		dup2(fd[1], STDOUT);
+		if (file_in == STDIN)
 			exit(1);
 		else
 			exec(cmd, env);
@@ -103,16 +106,16 @@ void	redirect(char *cmd, char **env, int fdin)
 
 int	main(int ac, char **av, char **env)
 {
-	int	fdin;
-	int	fdout;
+	int	file_in;
+	int	file_out;
 
 	if (ac == 5)
 	{
-		fdin = openfile(av[1], INFILE);
-		fdout = openfile(av[4], OUTFILE);
-		dup2(fdin, STDIN);
-		dup2(fdout, STDOUT);
-		redirect(av[2], env, fdin);
+		file_in = openfile(av[1], INFILE);
+		file_out = openfile(av[4], OUTFILE);
+		dup2(file_in, STDIN);
+		dup2(file_out, STDOUT);
+		redirect(av[2], env, file_in);
 		exec(av[3], env);
 	}
 	else
