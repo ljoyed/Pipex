@@ -6,7 +6,7 @@
 /*   By: loandrad <loandrad@student.42wolfsburg.    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/05/08 14:53:36 by loandrad          #+#    #+#             */
-/*   Updated: 2023/05/12 12:00:59 by loandrad         ###   ########.fr       */
+/*   Updated: 2023/05/13 13:54:18 by loandrad         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,7 +16,7 @@ int	openfile(char *filename, int mode)
 {
 	if (mode == INFILE)
 	{
-		if (access(filename, F_OK))
+		if (access(filename, F_OK) == -1)
 		{	
 			perror("pipex ");
 			strerror(errno);
@@ -25,7 +25,7 @@ int	openfile(char *filename, int mode)
 	}
 	else
 	{
-		if (access(filename, F_OK))
+		if (access(filename, F_OK) == -1)
 			exit(EXIT_FAILURE);
 		return (open(filename, O_CREAT | O_WRONLY | O_TRUNC,
 				S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH));
@@ -60,7 +60,7 @@ char	*get_path(char *cmd, char **env)
 	return (cmd);
 }
 
-void	exec(char *cmd, char **env)
+void	exec_func(char *cmd, char **env)
 {
 	char	**args;
 	char	*path;
@@ -73,13 +73,12 @@ void	exec(char *cmd, char **env)
 	else
 		path = get_path(args[0], env);
 	execve(path, args, env);
-	write(STDERR, "pipex: ", 7);
-	write(STDERR, cmd, str_i_chr(cmd, 0));
-	write(STDERR, ": command not found\n", 20);
-	exit(127);
+	perror("pipex ");
+	strerror(errno);
+	exit(EXIT_FAILURE);
 }
 
-void	redirect(char *cmd, char **env, int file_in)
+void	processes(char *cmd, char **env, int file_in)
 {
 	pid_t	pid;
 	int		fd[2];
@@ -100,7 +99,7 @@ void	redirect(char *cmd, char **env, int file_in)
 		if (file_in == STDIN)
 			exit(1);
 		else
-			exec(cmd, env);
+			exec_func(cmd, env);
 	}
 }
 
@@ -115,8 +114,8 @@ int	main(int ac, char **av, char **env)
 		file_out = openfile(av[4], OUTFILE);
 		dup2(file_in, STDIN);
 		dup2(file_out, STDOUT);
-		redirect(av[2], env, file_in);
-		exec(av[3], env);
+		processes(av[2], env, file_in);
+		exec_func(av[3], env);
 	}
 	else
 		write(STDERR, "Invalid number of arguments.\n", 29);
