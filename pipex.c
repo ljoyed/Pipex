@@ -6,118 +6,112 @@
 /*   By: loandrad <loandrad@student.42wolfsburg.    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/05/08 14:53:36 by loandrad          #+#    #+#             */
-/*   Updated: 2023/05/13 13:54:18 by loandrad         ###   ########.fr       */
+/*   Updated: 2023/05/23 12:10:54 by loandrad         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "pipex.h"
 
-int	openfile(char *filename, int mode)
+void	ft_execute(char *cmd, char **envp)
 {
-	if (mode == INFILE)
+	char	**splitcmd;
+	char	*cmdline;
+
+	splitcmd = ft_split_pipex(cmd);
+	cmdline = getcmd(splitcmd[0], envp);
+	if (ft_strncmp(cmd, "", ft_strlen(cmd)) == 0)
 	{
-		if (access(filename, F_OK) == -1)
-		{	
-			perror("pipex ");
-			strerror(errno);
+		if (execve(cmdline, splitcmd, 0) == -1)
+		{
+			ft_putendl_fd("pipex: permission denied: ", 2);
+			ft_free_all(splitcmd, cmdline);
+			exit(1);
 		}
-		return (open(filename, O_RDONLY));
 	}
 	else
 	{
-		if (access(filename, F_OK) == -1)
-			exit(EXIT_FAILURE);
-		return (open(filename, O_CREAT | O_WRONLY | O_TRUNC,
-				S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH));
+		if (execve(cmdline, splitcmd, 0) == -1)
+		{
+			ft_putstr_fd("pipex: command not found: ", 2);
+			ft_putendl_fd(splitcmd[0], 2);
+			free(cmdline);
+			exit(127);
+		}
 	}
 }
 
-char	*get_path(char *cmd, char **env)
+void	ft_childprocess(char *infile, int *pip_fd)
 {
-	char	*path;
-	char	*dir;
-	char	*bin;
-	int		i;
+	int	fdin;
 
-	i = 0;
-	while (env[i] && str_n_cmp(env[i], "PATH=", 5))
-		i++;
-	if (!env[i])
-		return (cmd);
-	path = env[i] + 5;
-	while (path && str_i_chr(path, ':') > -1)
-	{
-		dir = str_n_dup(path, str_i_chr(path, ':'));
-		bin = path_join(dir, cmd);
-		if (!bin)
-			free(bin);
-		free(dir);
-		if (access(bin, F_OK) == 0)
-			return (bin);
-		free(bin);
-		path += str_i_chr(path, ':') + 1;
-	}
-	return (cmd);
+	fdin = ft_openfile(infile, STDIN);
+	if (dup2(fdin, STDIN) == -1)
+		ft_error(1, "dup2");
+	if (close(pip_fd[0]) < 0)
+		ft_error(1, "close");
+	if (dup2(pip_fd[1], STDOUT_FILENO) == -1)
+		ft_error(1, "dup2");
+	if (close(fdin) < 0)
+		ft_error(1, "close");
+	if (close(pip_fd[1]) < 0)
+		ft_error(1, "close");
 }
 
-void	exec_func(char *cmd, char **env)
+void	ft_parentprocess(char *outfile, int *pip_fd)
 {
-	char	**args;
-	char	*path;
+	int	fdout;
 
-	args = str_split(cmd, ' ');
-	if (!args)
-		free(args);
-	if (str_i_chr(args[0], '/') > -1)
-		path = args[0];
-	else
-		path = get_path(args[0], env);
-	execve(path, args, env);
-	perror("pipex ");
-	strerror(errno);
-	exit(EXIT_FAILURE);
+	fdout = ft_openfile(outfile, STDOUT);
+	if (dup2(fdout, STDOUT) == -1)
+		ft_error(1, "dup2");
+	if (close(pip_fd[1]) < 0)
+		ft_error(1, "close");
+	if (dup2(pip_fd[0], STDIN_FILENO) == -1)
+		ft_error(1, "dup2");
+	if (close(fdout) < 0)
+		ft_error(1, "close");
+	if (close(pip_fd[0]) < 0)
+		ft_error(1, "close");
 }
 
-void	processes(char *cmd, char **env, int file_in)
+void	ft_fork_this(char **argv, char **envp)
 {
 	pid_t	pid;
-	int		fd[2];
-	int		status;
+	int		pip_fd[2];
 
-	pipe(fd);
+	if (pipe(pip_fd) == -1)
+		ft_error(1, "pipe not created");
 	pid = fork();
-	if (pid)
+	if (pid == -1)
+		ft_error(1, "fork");
+	if (pid == 0)
 	{
-		close(fd[1]);
-		dup2(fd[0], STDIN);
-		waitpid(pid, &status, WNOHANG);
+		ft_childprocess(argv[1], pip_fd);
+		ft_execute(argv[2], envp);
 	}
 	else
 	{
-		close(fd[0]);
-		dup2(fd[1], STDOUT);
-		if (file_in == STDIN)
-			exit(1);
-		else
-			exec_func(cmd, env);
+		waitpid(-1, NULL, WNOHANG);
+		ft_parentprocess(argv[4], pip_fd);
+		ft_execute(argv[3], envp);
 	}
 }
 
-int	main(int ac, char **av, char **env)
+int	main(int argc, char **argv, char **envp)
 {
-	int	file_in;
-	int	file_out;
+	pid_t	pid;
 
-	if (ac == 5)
+	if (argc != 5)
 	{
-		file_in = openfile(av[1], INFILE);
-		file_out = openfile(av[4], OUTFILE);
-		dup2(file_in, STDIN);
-		dup2(file_out, STDOUT);
-		processes(av[2], env, file_in);
-		exec_func(av[3], env);
+		ft_putendl_fd("./pipex infile cmd1 cmd2 outfile", STDERR);
+		exit(1);
 	}
+	pid = fork();
+	if (pid < 0)
+		ft_error(1, "fork");
+	if (pid == 0)
+		ft_fork_this(argv, envp);
 	else
-		write(STDERR, "Invalid number of arguments.\n", 29);
-	return (1);
+		waitpid(-1, NULL, WNOHANG);
+	return (0);
 }
